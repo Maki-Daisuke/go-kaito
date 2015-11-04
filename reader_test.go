@@ -8,15 +8,15 @@ import (
 )
 
 func TestGzip(t *testing.T) {
-	testOneToTen(t, "one-ten.txt.gz")
+	testOneToTen(t, "test/one-ten.txt.gz")
 }
 
 func TestXz(t *testing.T) {
-	testOneToTen(t, "one-ten.txt.gz")
+	testOneToTen(t, "test/one-ten.txt.gz")
 }
 
 func TestBzip2Disabled(t *testing.T) {
-	file, err := os.Open("one-ten.txt.bz2")
+	file, err := os.Open("test/one-ten.txt.bz2")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -36,16 +36,16 @@ func TestBzip2Disabled(t *testing.T) {
 }
 
 func TestBzip2(t *testing.T) {
-	testOneToTen(t, "one-ten.txt.bz2")
+	testOneToTen(t, "test/one-ten.txt.bz2")
 }
 
 func TestGzipNative(t *testing.T) {
-	testOneToTenWithOpts(t, "one-ten.txt.gz", Options{ForceNativeDecode: true})
+	testOneToTenWithOpts(t, "test/one-ten.txt.gz", Options{ForceNativeDecode: true})
 }
 
 func TestXzNative(t *testing.T) {
 	// Golang does not have Xz decompressor in its standard library. So, this will fail.
-	file, err := os.Open("one-ten.txt.xz")
+	file, err := os.Open("test/one-ten.txt.xz")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -59,7 +59,7 @@ func TestXzNative(t *testing.T) {
 }
 
 func TestBzip2Native(t *testing.T) {
-	testOneToTenWithOpts(t, "one-ten.txt.bz2", Options{ForceNativeDecode: true})
+	testOneToTenWithOpts(t, "test/one-ten.txt.bz2", Options{ForceNativeDecode: true})
 }
 
 func testOneToTen(t *testing.T, name string) {
