@@ -11,9 +11,9 @@ import (
 
 const (
 	state_UNINITIALIZED = iota
-	state_READY         = iota
-	state_CLOSED        = iota
-	state_ERROR         = iota
+	state_READY
+	state_CLOSED
+	state_ERROR
 )
 
 type Options struct {

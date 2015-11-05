@@ -6,9 +6,9 @@ type Codec int
 
 const (
 	CODEC_UNKNOWN = iota
-	CODEC_GZIP    = iota
-	CODEC_BZIP2   = iota
-	CODEC_XZ      = iota
+	CODEC_GZIP
+	CODEC_BZIP2
+	CODEC_XZ
 )
 
 type CodecDetectReader struct {
