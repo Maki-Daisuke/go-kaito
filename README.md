@@ -28,7 +28,7 @@ import (
 	"io"
 	"os"
 
-	"github.com/Maki-Daisuke/kaito"
+	"github.com/Maki-Daisuke/go-kaito"
 )
 
 func main() {
@@ -65,7 +65,7 @@ import (
 	"io"
 	"os"
 
-	"github.com/Maki-Daisuke/kaito"
+	"github.com/Maki-Daisuke/go-kaito"
 )
 
 func main() {
