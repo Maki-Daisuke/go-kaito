@@ -3,182 +3,200 @@ package kaito
 import (
 	"compress/bzip2"
 	"compress/gzip"
-	"fmt"
+	"errors"
 	"io"
-	"os"
 	"os/exec"
+	"runtime"
 )
+
+type KaitoReader struct {
+	io.Reader // Just delegate all Read operation to this Reader
+}
+
+func New(r io.Reader) io.Reader {
+	return NewWithOptions(r, 0)
+}
+
+func NewWithOptions(r io.Reader, o Options) io.Reader {
+	this := new(KaitoReader)
+	this.Reader = newCodecDetectReader(this, r, o)
+	return this
+}
+
+// We need to read at most 6 bytes to detect gzip, bzip2 and xz format.
+const MAX_HEADER_LENGTH = 6
+
+type codec_t int
 
 const (
-	state_UNINITIALIZED = iota
-	state_READY
-	state_CLOSED
-	state_ERROR
+	CODEC_UNDETERMINED = iota
+	CODEC_GZIP
+	CODEC_BZIP2
+	CODEC_XZ
 )
 
-type Options struct {
-	DisableGzip       bool
-	DisableBzip2      bool
-	DisableXz         bool
-	ForceNativeDecode bool
+var errUnknownCodec = errors.New("Unknown codec")
+
+type codecDetectReader struct {
+	kaito *KaitoReader // Pointer to KaitoReader
+	in    io.Reader
+	opts  Options
+	buf   [MAX_HEADER_LENGTH]byte
+	len   int // number of bytes read in buf
 }
 
-type Reader struct {
-	input        io.Reader
-	opts         Options
-	state        int
-	cmd          *exec.Cmd
-	decompressor io.Reader
+func newCodecDetectReader(k *KaitoReader, r io.Reader, o Options) *codecDetectReader {
+	return &codecDetectReader{kaito: k, in: r, opts: o}
 }
 
-func New(r io.Reader) io.ReadCloser {
-	return &Reader{input: r}
-}
-
-func NewWithOptions(r io.Reader, o Options) io.ReadCloser {
-	return &Reader{
-		input: r,
-		opts:  o,
-	}
-}
-
-func (r *Reader) Read(p []byte) (n int, err error) {
-	switch r.state {
-	case state_UNINITIALIZED:
-		err = r.initialize()
-		if err != nil {
-			return 0, err
-		}
-		n, err = r.decompressor.Read(p)
-		if err != nil {
-			if err == io.EOF {
-				r.Close()
-			} else {
-				r.state = state_ERROR
-			}
-		}
-		return
-	case state_READY:
-		n, err = r.decompressor.Read(p)
-		if err != nil {
-			if err == io.EOF {
-				r.Close()
-			} else {
-				r.state = state_ERROR
-			}
-		}
-		return
-	case state_CLOSED:
-		return 0, io.EOF
-	case state_ERROR:
-		return 0, fmt.Errorf("kaito is already at unusual state")
-	default:
-		panic("Should not enter here!!!")
-	}
-}
-
-func (r *Reader) initialize() error {
-	cdr := NewCodecDetectReader(r.input)
-	codec, err := cdr.Detect()
+func (cdr *codecDetectReader) Detect() (codec_t, error) {
+	isEOF := false
+	n, err := cdr.in.Read(cdr.buf[cdr.len:])
 	if err != nil {
-		return err
+		if err == io.EOF {
+			isEOF = true
+		} else {
+			return CODEC_UNDETERMINED, err
+		}
 	}
-	switch {
-	case !r.opts.DisableGzip && codec == CODEC_GZIP:
-		err := r.initializeGzip(cdr)
-		if err != nil {
-			return err
-		}
-	case !r.opts.DisableBzip2 && codec == CODEC_BZIP2:
-		err := r.initializeBzip2(cdr)
-		if err != nil {
-			return err
-		}
-	case !r.opts.DisableXz && codec == CODEC_XZ:
-		err := r.initializeXz(cdr)
-		if err != nil {
-			return err
-		}
-	default: // No compression
-		r.decompressor = cdr
+	cdr.len += n
+	// ここから下は、ホントはDFAを書いたほうが効率がよい
+	if cdr.len >= 1 && cdr.buf[0] != 0x1F && cdr.buf[0] != 'B' && cdr.buf[0] != 0xFD {
+		return CODEC_UNDETERMINED, errUnknownCodec
 	}
-	return nil
+	if cdr.len >= 2 && cdr.buf[0] == 0x1F {
+		if cdr.buf[1] == 0x8B && !cdr.opts.IsDisableGzip() {
+			return CODEC_GZIP, nil
+		}
+		return CODEC_UNDETERMINED, errUnknownCodec
+	}
+	if cdr.len >= 3 && cdr.buf[0] == 'B' && !cdr.opts.IsDisableBzip2() {
+		if cdr.buf[1] == 'Z' && cdr.buf[2] == 'h' {
+			return CODEC_BZIP2, nil
+		}
+		return CODEC_UNDETERMINED, errUnknownCodec
+	}
+	if cdr.len >= 6 && cdr.buf[0] == 0xFD {
+		if cdr.buf[1] == '7' && cdr.buf[2] == 'z' && cdr.buf[3] == 'X' && cdr.buf[4] == 'Z' && cdr.buf[5] == 0x00 && !cdr.opts.IsDisableXz() {
+			return CODEC_XZ, nil
+		}
+		return CODEC_UNDETERMINED, errUnknownCodec
+	}
+	if isEOF || cdr.len >= MAX_HEADER_LENGTH {
+		return CODEC_UNDETERMINED, errUnknownCodec
+	}
+	return CODEC_UNDETERMINED, nil
 }
 
-func (r *Reader) initializeGzip(in io.Reader) error {
-	if !r.opts.ForceNativeDecode {
-		err := r.initializeCmd(in, "gzip", "-cd")
+func (cdr *codecDetectReader) Read(p []byte) (int, error) {
+	var codec codec_t
+	var err error
+	for {
+		codec, err = cdr.Detect() // Read header if it is not read yet
+		if codec != CODEC_UNDETERMINED {
+			break
+		}
+		if err != nil {
+			if err == errUnknownCodec {
+				err = nil // not error
+				break
+			}
+			return copy(p, cdr.buf[0:cdr.len]), err
+		}
+	}
+	switch codec {
+	case CODEC_GZIP:
+		err = cdr.initGzip()
+	case CODEC_BZIP2:
+		err = cdr.initBzip2()
+	case CODEC_XZ:
+		err = cdr.initXz()
+	default: // Here, codec == CODEC_UNDETERMINED, it is treated as plain text
+		r, w := io.Pipe()
+		go func() {
+			w.Write(cdr.buf[0:cdr.len])
+			io.Copy(w, cdr.in)
+			w.Close()
+		}()
+		cdr.kaito.Reader = r
+	}
+	if err != nil {
+		return copy(p, cdr.buf[0:cdr.len]), err
+	}
+	return cdr.kaito.Reader.Read(p)
+}
+
+func (cdr *codecDetectReader) initGzip() error {
+	if !cdr.opts.IsForceNative() {
+		err := cdr.initCmd("gzip", "-cd")
 		if err == nil {
 			return nil
 		}
 		// Fallback through Golang-native implementation.
 	}
-	r.cmd = nil
-	unzipper, err := gzip.NewReader(in)
+	r, w := io.Pipe()
+	go func() {
+		w.Write(cdr.buf[0:cdr.len])
+		io.Copy(w, cdr.in)
+		w.Close()
+	}()
+	unzipped, err := gzip.NewReader(r)
 	if err != nil {
 		return err
 	}
-	r.decompressor = unzipper
-	r.state = state_READY
+	cdr.kaito.Reader = unzipped
 	return nil
 }
 
-func (r *Reader) initializeBzip2(in io.Reader) error {
-	if !r.opts.ForceNativeDecode {
-		err := r.initializeCmd(in, "bzip2", "-cd")
+func (cdr *codecDetectReader) initBzip2() error {
+	if !cdr.opts.IsForceNative() {
+		err := cdr.initCmd("bzip2", "-cd")
 		if err == nil {
 			return nil
 		}
 		// Fallback through Golang-native implementation.
 	}
-	r.cmd = nil
-	r.decompressor = bzip2.NewReader(in)
-	r.state = state_READY
+	r, w := io.Pipe()
+	go func() {
+		w.Write(cdr.buf[0:cdr.len])
+		io.Copy(w, cdr.in)
+		w.Close()
+	}()
+	cdr.kaito.Reader = bzip2.NewReader(r)
 	return nil
 }
 
-func (r *Reader) initializeXz(in io.Reader) error {
-	if r.opts.ForceNativeDecode {
-		return fmt.Errorf("Go does not have Xz library by default.")
+func (cdr *codecDetectReader) initXz() error {
+	if cdr.opts.IsForceNative() {
+		return errors.New("Go does not have Xz library by default.")
 	}
-	return r.initializeCmd(in, "xz", "-cd")
+	return cdr.initCmd("xz", "-cd")
 }
 
-func (r *Reader) initializeCmd(in io.Reader, cmd string, args ...string) (err error) {
-	r.cmd = exec.Command(cmd, args...)
-	r.cmd.Stdin = in
-	r.decompressor, err = r.cmd.StdoutPipe()
+func (cdr *codecDetectReader) initCmd(c string, args ...string) (err error) {
+	cmd := exec.Command(c, args...)
+	stdin, err := cmd.StdinPipe()
 	if err != nil {
-		r.state = state_ERROR
-		return
+		return err
 	}
-	err = r.cmd.Start()
+	stdout, err := cmd.StdoutPipe()
 	if err != nil {
-		r.state = state_ERROR
-		return
+		return err
 	}
-	r.state = state_READY
-	return nil
-}
-
-func (r *Reader) Close() error {
-	if r.state == state_CLOSED {
-		// Already closed.
-		return nil
+	err = cmd.Start()
+	if err != nil {
+		return err
 	}
-	if c, ok := r.input.(io.Closer); ok {
-		c.Close()
-	}
-	if r.cmd != nil {
-		err := r.cmd.Process.Signal(os.Interrupt)
-		if err != nil {
-			return err
-		}
-		r.cmd.Wait() // Ignore exit code.
-		r.cmd = nil
-	}
-	r.input = nil
-	r.decompressor = nil
-	r.state = state_CLOSED
+	go func() {
+		stdin.Write(cdr.buf[0:cdr.len])
+		io.Copy(stdin, cdr.in)
+		stdin.Close()
+	}()
+	cdr.kaito.Reader = stdout
+	runtime.SetFinalizer(cdr.kaito, func(o interface{}) {
+		stdin.Close()
+		stdout.Close()
+		cmd.Wait()
+	})
 	return nil
 }

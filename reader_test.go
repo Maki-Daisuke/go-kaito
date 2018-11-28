@@ -20,8 +20,7 @@ func TestBzip2Disabled(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	rd := NewWithOptions(file, Options{DisableBzip2: true})
-	defer rd.Close()
+	rd := NewWithOptions(file, DISABLE_BZIP2)
 	buf := make([]byte, 6)
 	n, err := rd.Read(buf)
 	if err != nil {
@@ -40,7 +39,7 @@ func TestBzip2(t *testing.T) {
 }
 
 func TestGzipNative(t *testing.T) {
-	testOneToTenWithOpts(t, "test/one-ten.txt.gz", Options{ForceNativeDecode: true})
+	testOneToTenWithOpts(t, "test/one-ten.txt.gz", FORCE_NATIVE)
 }
 
 func TestXzNative(t *testing.T) {
@@ -49,8 +48,7 @@ func TestXzNative(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	rd := NewWithOptions(file, Options{ForceNativeDecode: true})
-	defer rd.Close()
+	rd := NewWithOptions(file, FORCE_NATIVE)
 	brd := bufio.NewReader(rd)
 	_, err = brd.ReadString('\n')
 	if err == nil {
@@ -59,7 +57,7 @@ func TestXzNative(t *testing.T) {
 }
 
 func TestBzip2Native(t *testing.T) {
-	testOneToTenWithOpts(t, "test/one-ten.txt.bz2", Options{ForceNativeDecode: true})
+	testOneToTenWithOpts(t, "test/one-ten.txt.bz2", FORCE_NATIVE)
 }
 
 func testOneToTen(t *testing.T, name string) {
@@ -68,7 +66,6 @@ func testOneToTen(t *testing.T, name string) {
 		t.Fatal(err)
 	}
 	rd := New(file)
-	defer rd.Close()
 	testOneToTen_aux(t, rd)
 }
 
@@ -78,7 +75,6 @@ func testOneToTenWithOpts(t *testing.T, name string, opts Options) {
 		t.Fatal(err)
 	}
 	rd := NewWithOptions(file, opts)
-	defer rd.Close()
 	testOneToTen_aux(t, rd)
 }
 
