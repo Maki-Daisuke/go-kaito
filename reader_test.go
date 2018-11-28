@@ -43,17 +43,7 @@ func TestGzipNative(t *testing.T) {
 }
 
 func TestXzNative(t *testing.T) {
-	// Golang does not have Xz decompressor in its standard library. So, this will fail.
-	file, err := os.Open("test/one-ten.txt.xz")
-	if err != nil {
-		t.Fatal(err)
-	}
-	rd := NewWithOptions(file, ForceNative)
-	brd := bufio.NewReader(rd)
-	_, err = brd.ReadString('\n')
-	if err == nil {
-		t.Fatal("Read() should fail, but actually successed. Whoa!?")
-	}
+	testOneToTenWithOpts(t, "test/one-ten.txt.xz", ForceNative)
 }
 
 func TestBzip2Native(t *testing.T) {

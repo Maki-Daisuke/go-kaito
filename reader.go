@@ -7,6 +7,8 @@ import (
 	"io"
 	"os/exec"
 	"runtime"
+
+	"github.com/ulikunitz/xz"
 )
 
 type KaitoReader struct {
@@ -167,10 +169,25 @@ func (cdr *codecDetectReader) initBzip2() error {
 }
 
 func (cdr *codecDetectReader) initXz() error {
-	if cdr.opts.IsForceNative() {
-		return errors.New("Go does not have Xz library by default.")
+	if !cdr.opts.IsForceNative() {
+		err := cdr.initCmd("xz", "-cd")
+		if err == nil {
+			return nil
+		}
+		// Fallback through Golang-native implementation.
 	}
-	return cdr.initCmd("xz", "-cd")
+	r, w := io.Pipe()
+	go func() {
+		w.Write(cdr.buf[0:cdr.len])
+		io.Copy(w, cdr.in)
+		w.Close()
+	}()
+	unxz, err := (xz.ReaderConfig{SingleStream: true}).NewReader(r)
+	if err != nil {
+		return nil
+	}
+	cdr.kaito.Reader = unxz
+	return nil
 }
 
 func (cdr *codecDetectReader) initCmd(c string, args ...string) (err error) {
