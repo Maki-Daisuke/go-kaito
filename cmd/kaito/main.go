@@ -15,7 +15,7 @@ var opts struct {
 	DisableGzip  bool `short:"G" long:"disable-gzip" description:"Disable Gzip decompression and pass through raw input."`
 	DisableBzip2 bool `short:"B" long:"disable-bzip2" description:"Disable Bzip2 decompression and pass through raw input."`
 	DisableXz    bool `short:"X" long:"disable-xz" description:"Disable Xz decompression and pass through raw input."`
-	ForceNative  bool `short:"n" long:"force-native" description:"Force to use Go-native implentation of decompression algorithm (this makes xz decompression fail)."`
+	ForceNative  bool `short:"n" long:"force-native" description:"Force to use Go-native implentation of decompression algorithm."`
 	ToStdout     bool `short:"c" long:"stdout" description:"Write the decompressed data to standard output instead of a file. This implies --keep."`
 	Keep         bool `short:"k" long:"keep" description:"Don't delete the input files."`
 	Decode       bool `short:"d" long:"decompress" description:"Nop. Just for tar command."`
