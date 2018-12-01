@@ -1,9 +1,11 @@
 package main
 
 import (
+	"errors"
 	"fmt"
 	"io"
 	"os"
+	"regexp"
 
 	"github.com/Maki-Daisuke/go-kaito"
 	"github.com/jessevdk/go-flags"
@@ -48,23 +50,57 @@ func main() {
 	}
 
 	for _, file := range args {
-		var r io.Reader
 		if file == "-" {
-			r = os.Stdin
+			k := kaito.NewWithOptions(os.Stdin, kaitoOpts)
+			_, err := io.Copy(os.Stdout, k)
+			if err != nil {
+				fmt.Fprintf(os.Stderr, "kaito: %s\n", err)
+			}
 		} else {
 			var err error
-			r, err = os.Open(file)
+			rd, err := os.Open(file)
 			if err != nil {
-				fmt.Fprintf(os.Stderr, "Can't open file %s: %s", file, err)
+				fmt.Fprintf(os.Stderr, "kaito: %s\n", err)
 				continue
 			}
+			out := os.Stdout
+			if !opts.ToStdout {
+				outFile, err := outputFilename(file)
+				if err != nil {
+					fmt.Fprintf(os.Stderr, "kaito: %s: Filename has an unknown suffix, skipping\n", file)
+					continue
+				}
+				if _, err := os.Open(outFile); err == nil {
+					fmt.Fprintf(os.Stderr, "kaito: %s already exists, skipping\n", outFile)
+					continue
+				}
+				out, err = os.Create(outFile)
+				if err != nil {
+					fmt.Fprintf(os.Stderr, "kaito: %s :%s\n", outFile, err)
+					continue
+				}
+			}
+			k := kaito.NewWithOptions(rd, kaitoOpts)
+			_, err = io.Copy(out, k)
+			if err != nil {
+				fmt.Fprintf(os.Stderr, "kaito: %s: %s\n", file, err)
+			}
+			if !opts.Keep {
+				err := os.Remove(file)
+				if err != nil {
+					fmt.Fprintf(os.Stderr, "kaito: %s: %s\n", file, err)
+				}
+			}
 		}
-		k := kaito.NewWithOptions(r, kaitoOpts)
-		_, err := io.Copy(os.Stdout, k)
-		if err != nil {
-			fmt.Fprintln(os.Stderr, err)
-			os.Exit(1)
-		}
-		os.Exit(0)
 	}
+}
+
+var reExt *regexp.Regexp = regexp.MustCompile(`(?i)\.(?:gz|bz2|xz)$`)
+
+func outputFilename(s string) (string, error) {
+	t := reExt.FindString(s)
+	if t == "" {
+		return "", errors.New("unknown suffix")
+	}
+	return s[0 : len(s)-len(t)], nil
 }
