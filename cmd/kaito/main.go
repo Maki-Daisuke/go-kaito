@@ -16,6 +16,7 @@ var opts struct {
 	ForceNative  bool `short:"n" long:"force-native" description:"Force to use Go-native implentation of decompression algorithm (this makes xz decompression fail)."`
 	ToStdout     bool `short:"c" long:"stdout" description:"Write the decompressed data to standard output instead of a file. This implies --keep."`
 	Keep         bool `short:"k" long:"keep" description:"Don't delete the input files."`
+	Decode       bool `short:"d" long:"decompress" description:"Nop. Just for tar command."`
 }
 
 func main() {
