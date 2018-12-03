@@ -24,10 +24,6 @@ var opts struct {
 func main() {
 	args, err := flags.Parse(&opts)
 	if err != nil {
-		if flags.WroteHelp(err) {
-			os.Exit(0)
-		}
-		fmt.Fprintln(os.Stderr, err)
 		os.Exit(1)
 	}
 	if opts.ToStdout {
