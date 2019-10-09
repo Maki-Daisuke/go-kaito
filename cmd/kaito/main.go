@@ -69,13 +69,9 @@ func main() {
 					fmt.Fprintf(os.Stderr, "kaito: %s: Filename has an unknown suffix, skipping\n", file)
 					continue
 				}
-				if _, err := os.Open(outFile); err == nil {
-					fmt.Fprintf(os.Stderr, "kaito: %s already exists, skipping\n", outFile)
-					continue
-				}
-				out, err = os.Create(outFile)
+				out, err = os.OpenFile(outFile, os.O_CREATE|os.O_EXCL|os.O_WRONLY, 0644)
 				if err != nil {
-					fmt.Fprintf(os.Stderr, "kaito: %s :%s\n", outFile, err)
+					fmt.Fprintf(os.Stderr, "kaito: %s, skipping\n", err)
 					continue
 				}
 			}
