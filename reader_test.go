@@ -56,7 +56,7 @@ func testOneToTen(t *testing.T, name string) {
 		t.Fatal(err)
 	}
 	rd := New(file)
-	testOneToTen_aux(t, rd)
+	testOneToTenAux(t, rd)
 }
 
 func testOneToTenWithOpts(t *testing.T, name string, opts Options) {
@@ -65,10 +65,10 @@ func testOneToTenWithOpts(t *testing.T, name string, opts Options) {
 		t.Fatal(err)
 	}
 	rd := NewWithOptions(file, opts)
-	testOneToTen_aux(t, rd)
+	testOneToTenAux(t, rd)
 }
 
-func testOneToTen_aux(t *testing.T, rd io.Reader) {
+func testOneToTenAux(t *testing.T, rd io.Reader) {
 	brd := bufio.NewReader(rd)
 	for _, num := range []string{"One\n", "Two\n", "Three\n", "Four\n", "Five\n", "Six\n", "Seven\n", "Eight\n", "Nine\n", "Ten\n"} {
 		line, err := brd.ReadString('\n')

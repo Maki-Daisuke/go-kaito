@@ -11,7 +11,7 @@ import (
 	"github.com/ulikunitz/xz"
 )
 
-type KaitoReader struct {
+type Reader struct {
 	io.Reader // Just delegate all Read operation to this Reader
 }
 
@@ -20,82 +20,82 @@ func New(r io.Reader) io.Reader {
 }
 
 func NewWithOptions(r io.Reader, o Options) io.Reader {
-	this := new(KaitoReader)
+	this := new(Reader)
 	this.Reader = newCodecDetectReader(this, r, o)
 	return this
 }
 
 // We need to read at most 6 bytes to detect gzip, bzip2 and xz format.
-const MAX_HEADER_LENGTH = 6
+const maxHeaderLength = 6
 
-type codec_t int
+type codecType int
 
 const (
-	CODEC_UNDETERMINED = iota
-	CODEC_GZIP
-	CODEC_BZIP2
-	CODEC_XZ
+	codecUndetermined = iota
+	codecGzip
+	codecBzip2
+	codecXz
 )
 
 var errUnknownCodec = errors.New("Unknown codec")
 
 type codecDetectReader struct {
-	kaito *KaitoReader // Pointer to KaitoReader
+	kaito *Reader // Pointer to KaitoReader
 	in    io.Reader
 	opts  Options
-	buf   [MAX_HEADER_LENGTH]byte
+	buf   [maxHeaderLength]byte
 	len   int // number of bytes read in buf
 }
 
-func newCodecDetectReader(k *KaitoReader, r io.Reader, o Options) *codecDetectReader {
+func newCodecDetectReader(k *Reader, r io.Reader, o Options) *codecDetectReader {
 	return &codecDetectReader{kaito: k, in: r, opts: o}
 }
 
-func (cdr *codecDetectReader) Detect() (codec_t, error) {
+func (cdr *codecDetectReader) detect() (codecType, error) {
 	isEOF := false
 	n, err := cdr.in.Read(cdr.buf[cdr.len:])
 	if err != nil {
 		if err == io.EOF {
 			isEOF = true
 		} else {
-			return CODEC_UNDETERMINED, err
+			return codecUndetermined, err
 		}
 	}
 	cdr.len += n
 	// ここから下は、ホントはDFAを書いたほうが効率がよい
 	if cdr.len >= 1 && cdr.buf[0] != 0x1F && cdr.buf[0] != 'B' && cdr.buf[0] != 0xFD {
-		return CODEC_UNDETERMINED, errUnknownCodec
+		return codecUndetermined, errUnknownCodec
 	}
 	if cdr.len >= 2 && cdr.buf[0] == 0x1F {
 		if cdr.buf[1] == 0x8B && !cdr.opts.IsDisableGzip() {
-			return CODEC_GZIP, nil
+			return codecGzip, nil
 		}
-		return CODEC_UNDETERMINED, errUnknownCodec
+		return codecUndetermined, errUnknownCodec
 	}
 	if cdr.len >= 3 && cdr.buf[0] == 'B' && !cdr.opts.IsDisableBzip2() {
 		if cdr.buf[1] == 'Z' && cdr.buf[2] == 'h' {
-			return CODEC_BZIP2, nil
+			return codecBzip2, nil
 		}
-		return CODEC_UNDETERMINED, errUnknownCodec
+		return codecUndetermined, errUnknownCodec
 	}
 	if cdr.len >= 6 && cdr.buf[0] == 0xFD {
 		if cdr.buf[1] == '7' && cdr.buf[2] == 'z' && cdr.buf[3] == 'X' && cdr.buf[4] == 'Z' && cdr.buf[5] == 0x00 && !cdr.opts.IsDisableXz() {
-			return CODEC_XZ, nil
+			return codecXz, nil
 		}
-		return CODEC_UNDETERMINED, errUnknownCodec
+		return codecUndetermined, errUnknownCodec
 	}
-	if isEOF || cdr.len >= MAX_HEADER_LENGTH {
-		return CODEC_UNDETERMINED, errUnknownCodec
+	if isEOF || cdr.len >= maxHeaderLength {
+		return codecUndetermined, errUnknownCodec
 	}
-	return CODEC_UNDETERMINED, nil
+	return codecUndetermined, nil
 }
 
 func (cdr *codecDetectReader) Read(p []byte) (int, error) {
-	var codec codec_t
+	var codec codecType
 	var err error
 	for {
-		codec, err = cdr.Detect() // Read header if it is not read yet
-		if codec != CODEC_UNDETERMINED {
+		codec, err = cdr.detect() // Read header if it is not read yet
+		if codec != codecUndetermined {
 			break
 		}
 		if err != nil {
@@ -107,11 +107,11 @@ func (cdr *codecDetectReader) Read(p []byte) (int, error) {
 		}
 	}
 	switch codec {
-	case CODEC_GZIP:
+	case codecGzip:
 		err = cdr.initGzip()
-	case CODEC_BZIP2:
+	case codecBzip2:
 		err = cdr.initBzip2()
-	case CODEC_XZ:
+	case codecXz:
 		err = cdr.initXz()
 	default: // Here, codec == CODEC_UNDETERMINED, it is treated as plain text
 		r, w := io.Pipe()
