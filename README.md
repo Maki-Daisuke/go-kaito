@@ -88,9 +88,9 @@ func main() {
 Prerequisites
 ---------------
 
-It is recommended to install `gzip`, `bzip2` and `xz` command. 
-Kaito tries to use these command, and fallback to Go-native implementation of 
-the algorithms if the commands fail. 
+It is recommended to install `gzip`, `bzip2` and `xz` commands. 
+Kaito tries to use these commands, and fallbacks to Go-native implementation of 
+those algorithms if the commands fail. 
 Thus, those commands are not mandatory, but they are much faster than Go-native 
 implementations according to my experience.
 
