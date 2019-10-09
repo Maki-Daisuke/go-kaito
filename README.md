@@ -88,14 +88,11 @@ func main() {
 Prerequisites
 ---------------
 
-It is recommended to install `gzip` and `bzip2` command. Kaito tries to use these
-command, and fallback to Go-native implementation of the algorithms
-if the commands fail. Thus, those two commands are not mandatory, but they are
-much faster than Go-native implementations according to my experience.
-
-Unlike `gzip` and `bzip2`, Go does not have xz decompressor in its standard library.
-You need to install `xz` command to decompress xz file format.
-Install [XZ Utils](http://tukaani.org/xz/).
+It is recommended to install `gzip`, `bzip2` and `xz` command. 
+Kaito tries to use these command, and fallback to Go-native implementation of 
+the algorithms if the commands fail. 
+Thus, those commands are not mandatory, but they are much faster than Go-native 
+implementations according to my experience.
 
 
 License
